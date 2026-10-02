@@ -95,7 +95,18 @@ function log(msg) {
     debugEl.scrollTop = debugEl.scrollHeight;
 }
 
-// Загружаем список специалистов с GitHub (CORS работает!)
+// Надёжное декодирование base64 → UTF-8 (работает с кириллицей)
+function b64DecodeUnicode(str) {
+    const byteCharacters = atob(str);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    return new TextDecoder('utf-8').decode(byteArray);
+}
+
+// Загружаем список специалистов с GitHub
 async function loadSpecialists() {
     log('Загружаю список специалистов с GitHub...');
     try {
@@ -108,8 +119,8 @@ async function loadSpecialists() {
         const data = await r.json();
         log('Файл найден, размер: ' + data.size + ' байт');
         
-        // Правильное декодирование UTF-8 (кириллицы)
-        const decoded = decodeURIComponent(escape(atob(data.content)));
+        // Надёжное декодирование UTF-8
+        const decoded = b64DecodeUnicode(data.content);
         const specialists = JSON.parse(decoded);
         log('Получено специалистов: ' + specialists.length);
         
@@ -149,26 +160,22 @@ document.getElementById('camera').addEventListener('change', async e => {
     try {
         statusEl.innerHTML = '<span class="spin">⏳</span> Отправляю фото...';
         
-        // 1. Получаем ссылку на загрузку
         const up = await fetch(API + '/resources/upload?path=' + encodeURIComponent('/acts-bot/inbox/' + name) + '&overwrite=true', { headers: H });
         const upj = await up.json();
         if (!upj.href) throw new Error('Не удалось получить ссылку для загрузки');
         
-        // 2. Загружаем файл
         const put = await fetch(upj.href, { method: 'PUT', body: file });
         if (put.status !== 201) throw new Error('Ошибка загрузки: ' + put.status);
 
         statusEl.innerHTML = '<span class="spin">⏳</span> Фото отправлено! Обрабатываю...';
         log('Фото загружено, жду результат...');
 
-        // 3. Ждём результат в outbox (до 2 минут, проверка каждые 5 сек)
         for (let i = 0; i < 24; i++) {
             await sleep(5000);
             const lr = await fetch(API + '/resources?path=' + encodeURIComponent('/acts-bot/outbox'), { headers: H });
             const lj = await lr.json();
             const items = (lj._embedded && lj._embedded.items) || [];
             
-            // Ищем файл, который начинается с нашего уникального имени
             const found = items.find(it => it.name.startsWith(safeName + '_' + ts));
             
             if (found) {
