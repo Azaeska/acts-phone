@@ -79,6 +79,9 @@ const TOKEN = 'y0__wgBEK-D-7IHGPyVSyDw36GgGT_TVerXZdSfzGjgDVqQcvqXIvw0';
 const API = 'https://cloud-api.yandex.net/v1/disk';
 const H = { 'Authorization': 'OAuth ' + TOKEN };
 
+// GitHub API для чтения файла (CORS разрешён!)
+const GITHUB_API = 'https://api.github.com/repos/Azaeska/acts-phone/contents/specialists.json';
+
 const statusEl = document.getElementById('status');
 const resultEl = document.getElementById('result');
 const specialistSelect = document.getElementById('specialist');
@@ -91,38 +94,22 @@ function log(msg) {
     debugEl.scrollTop = debugEl.scrollHeight;
 }
 
-// Загружаем список специалистов через API (не через скачивание файла)
+// Загружаем список специалистов с GitHub (CORS работает!)
 async function loadSpecialists() {
-    log('Загружаю список специалистов...');
+    log('Загружаю список специалистов с GitHub...');
     try {
-        // Получаем метаданные файла
-        const r = await fetch(API + '/resources?path=' + encodeURIComponent('/acts-bot/specialists.json'), { headers: H });
-        log('Статус метаданных: ' + r.status);
-        
-        if (r.status === 401 || r.status === 403) throw new Error('Неверный токен');
-        if (r.status === 404) throw new Error('Файл не найден');
-        
-        const meta = await r.json();
-        log('Файл найден, размер: ' + meta.size + ' байт');
-        
-        // Получаем ссылку для скачивания
-        const dl = await fetch(API + '/resources/download?path=' + encodeURIComponent('/acts-bot/specialists.json'), { headers: H });
-        const dlData = await dl.json();
-        log('Ссылка получена');
-        
-        // Скачиваем файл БЕЗ заголовка авторизации (временная ссылка)
-        const fr = await fetch(dlData.href, { 
-            method: 'GET',
-            mode: 'cors',
-            cache: 'no-cache'
+        const r = await fetch(GITHUB_API, {
+            headers: { 'Accept': 'application/vnd.github.v3+json' }
         });
         
-        if (!fr.ok) throw new Error('Ошибка скачивания: ' + fr.status);
+        if (!r.ok) throw new Error('GitHub API ошибка: ' + r.status);
         
-        const text = await fr.text();
-        log('Файл скачан, размер: ' + text.length);
+        const data = await r.json();
+        log('Файл найден, размер: ' + data.size + ' байт');
         
-        const specialists = JSON.parse(text);
+        // GitHub отдаёт содержимое в base64
+        const decoded = atob(data.content);
+        const specialists = JSON.parse(decoded);
         log('Получено специалистов: ' + specialists.length);
         
         specialistSelect.innerHTML = '<option value="">Выбери специалиста...</option>';
@@ -134,7 +121,7 @@ async function loadSpecialists() {
         });
         log('✅ Список загружен!');
     } catch (err) {
-        log('❌ Ошибка: ' + err.message);
+        log(' Ошибка: ' + err.message);
         specialistSelect.innerHTML = '<option value="">Ошибка загрузки</option>';
     }
 }
