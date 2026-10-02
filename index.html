@@ -71,7 +71,7 @@
         </select>
     </div>
 
-    <label class="btn-photo" for="camera">📷 Сфотографировать</label>
+    <label class="btn-photo" for="camera">📷 Сфотографировать QR</label>
     <input type="file" id="camera" accept="image/*" capture="environment">
 
     <div id="status"></div>
@@ -80,12 +80,10 @@
 </div>
 
 <script>
-// ===== ТВОЙ ТОКЕН ЯНДЕКС ДИСКА =====
 const TOKEN = 'y0__wgBEK-D-7IHGPyVSyDw36GgGT_TVerXZdSfzGjgDVqQcvqXIvw0';
 const API = 'https://cloud-api.yandex.net/v1/disk';
 const H = { 'Authorization': 'OAuth ' + TOKEN };
 
-// GitHub API для чтения файлов (CORS разрешён!)
 const GITHUB_API = 'https://api.github.com/repos/Azaeska/acts-phone/contents';
 const RESULTS_PATH = 'results';
 
@@ -125,7 +123,6 @@ async function loadSpecialists() {
         const data = await r.json();
         log('Файл найден, размер: ' + data.size + ' байт');
         
-        // Надёжное декодирование UTF-8
         const decoded = b64DecodeUnicode(data.content);
         const specialists = JSON.parse(decoded);
         log('Получено специалистов: ' + specialists.length);
@@ -139,12 +136,11 @@ async function loadSpecialists() {
         });
         log('✅ Список загружен!');
     } catch (err) {
-        log('❌ Ошибка: ' + err.message);
+        log(' Ошибка: ' + err.message);
         specialistSelect.innerHTML = '<option value="">Ошибка загрузки</option>';
     }
 }
 
-// Запускаем загрузку при старте
 loadSpecialists();
 
 // Обработка выбора файла (фото)
@@ -180,26 +176,24 @@ document.getElementById('camera').addEventListener('change', async e => {
         for (let i = 0; i < 24; i++) {
             await sleep(5000);
             
-            // Ищем файл результата на GitHub
             const resultApiUrl = GITHUB_API + '/' + RESULTS_PATH;
             const lr = await fetch(resultApiUrl, {
                 headers: { 'Accept': 'application/vnd.github.v3+json' }
             });
             
             if (!lr.ok) {
-                log('Папка results ещё не создана на GitHub');
+                log('Папка results ещё не доступна');
                 continue;
             }
             
             const lj = await lr.json();
             
-            // Ищем файл, который начинается с нашего имени
-            const found = lj.find(it => it.name.startsWith(safeName + '_') && it.name.endsWith('.txt'));
+            // Ищем файл по ТОЧНОМУ имени: result_TIMESTAMP.txt
+            const found = lj.find(it => it.name === `result_${ts}.txt`);
             
             if (found) {
-                log('Результат найден на GitHub: ' + found.name);
+                log('Результат найден: ' + found.name);
                 
-                // Загружаем содержимое файла
                 const rr = await fetch(found.url, {
                     headers: { 'Accept': 'application/vnd.github.v3+json' }
                 });
@@ -207,11 +201,9 @@ document.getElementById('camera').addEventListener('change', async e => {
                 if (!rr.ok) throw new Error('Ошибка загрузки результата: ' + rr.status);
                 
                 const rd = await rr.json();
-                // Декодируем base64
                 const decoded = b64DecodeUnicode(rd.content);
                 
                 statusEl.innerHTML = '✅ Готово!';
-                // Показываем содержимое прямо на странице
                 resultEl.innerHTML = '<div class="result-box">' + decoded.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>';
                 log('✅ Результат отображён!');
                 return;
