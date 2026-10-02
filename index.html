@@ -31,11 +31,8 @@
     }
     select:focus, input[type=text]:focus { outline: none; border-color: #4f46e5; }
     #reader {
-        width: 100%;
-        border-radius: 16px;
-        overflow: hidden;
-        margin-bottom: 16px;
-        background: #000;
+        width: 100%; border-radius: 16px; overflow: hidden;
+        margin-bottom: 16px; background: #000;
     }
     #reader video { border-radius: 16px; }
     .btn-scan {
@@ -53,33 +50,35 @@
         background: #ef4444; color: #fff; font-weight: 700; font-family: inherit;
         margin-bottom: 12px;
     }
+    .btn-send {
+        display: block; width: 100%; padding: 20px;
+        border: none; border-radius: 16px; cursor: pointer;
+        background: linear-gradient(135deg, #059669, #10b981);
+        color: #fff; font-size: 1.15rem; font-weight: 800; font-family: inherit;
+        box-shadow: 0 10px 25px rgba(5,150,105,.4);
+        margin-bottom: 12px;
+    }
+    .btn-send:active { transform: scale(.97); }
     #status { margin-top: 20px; font-weight: 700; font-size: .95rem; color: #334155; min-height: 24px; }
     #result { margin-top: 16px; }
     .result-box {
-        background: #f8fafc;
-        padding: 16px;
-        border-radius: 12px;
-        text-align: left;
-        white-space: pre-wrap;
-        font-size: .9rem;
-        line-height: 1.5;
+        background: #f8fafc; padding: 16px; border-radius: 12px;
+        text-align: left; white-space: pre-wrap; font-size: .9rem; line-height: 1.5;
         border-left: 4px solid #10b981;
     }
     .spin { display: inline-block; animation: rot 1s linear infinite; }
     @keyframes rot { to { transform: rotate(360deg); } }
+    input[type=file] { display: none; }
     .debug {
         margin-top: 20px; padding: 12px; background: #f1f5f9;
         border-radius: 8px; font-size: .7rem; color: #475569;
         text-align: left; white-space: pre-wrap; max-height: 150px; overflow-y: auto;
     }
-    .manual-input {
-        display: flex; gap: 8px; margin-top: 12px;
-    }
+    .manual-input { display: flex; gap: 8px; margin-top: 12px; }
     .manual-input input { flex: 1; }
     .manual-input button {
         padding: 14px 20px; border: none; border-radius: 12px;
-        background: #059669; color: #fff; font-weight: 700; font-family: inherit;
-        cursor: pointer;
+        background: #059669; color: #fff; font-weight: 700; font-family: inherit; cursor: pointer;
     }
 </style>
 </head>
@@ -100,15 +99,15 @@
     <button class="btn-stop" id="btnStop">⏹ Остановить камеру</button>
 
     <div class="form-group">
-        <label for="invNumber">🔢 Инвентарный номер:</label>
-        <input type="text" id="invNumber" placeholder="Будет заполнен автоматически">
+        <label for="invNumber"> Инвентарный номер:</label>
+        <input type="text" id="invNumber" placeholder="Будет заполнен автоматически" readonly>
         <div class="manual-input">
             <input type="text" id="manualInv" placeholder="Или введи вручную">
             <button id="btnManual">OK</button>
         </div>
     </div>
 
-    <button class="btn-scan" id="btnSend" style="background: linear-gradient(135deg, #059669, #10b981);">✅ Отправить запрос</button>
+    <button class="btn-send" id="btnSend">✅ Отправить запрос</button>
 
     <div id="status"></div>
     <div id="result"></div>
@@ -117,8 +116,8 @@
 
 <script>
 // ===== НАСТРОЙКИ =====
-// ВСТАВЬ СЮДА ТОКЕН, КОТОРЫЙ СОЗДАЛ В ШАГЕ 1
-const GITHUB_TOKEN = 'github_pat_ВСТАВЬ_СВОЙ_ТОКЕН_ЗДЕСЬ';
+// ВСТАВЬ СЮДА СВОЙ GITHUB ТОКЕН (с правами на запись в requests/)
+const GITHUB_TOKEN = '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';
 const GITHUB_REPO = 'Azaeska/acts-phone';
 const GITHUB_BRANCH = 'main';
 const REQUESTS_PATH = 'requests';
@@ -195,18 +194,15 @@ btnScan.addEventListener('click', async () => {
     try {
         html5QrCode = new Html5Qrcode("reader");
         await html5QrCode.start(
-            { facingMode: "environment" }, // задняя камера
-            {
-                fps: 10,
-                qrbox: { width: 250, height: 250 }
-            },
+            { facingMode: "environment" },
+            { fps: 10, qrbox: { width: 250, height: 250 } },
             onScanSuccess,
             onScanFailure
         );
         isScanning = true;
         btnScan.style.display = 'none';
         btnStop.style.display = 'block';
-        log('📷 Камера запущена...');
+        log(' Камера запущена...');
     } catch (err) {
         log('❌ Ошибка камеры: ' + err.message);
         statusEl.innerHTML = '❌ Не удалось открыть камеру. Проверь разрешения.';
@@ -220,7 +216,7 @@ btnStop.addEventListener('click', async () => {
         isScanning = false;
         btnScan.style.display = 'block';
         btnStop.style.display = 'none';
-        log(' Камера остановлена');
+        log('⏹ Камера остановлена');
     }
 });
 
@@ -228,7 +224,6 @@ function onScanSuccess(decodedText, decodedResult) {
     log('✅ QR распознан: ' + decodedText);
     invNumberInput.value = decodedText;
     
-    // Останавливаем камеру после успешного сканирования
     if (html5QrCode && isScanning) {
         html5QrCode.stop();
         html5QrCode.clear();
@@ -241,10 +236,10 @@ function onScanSuccess(decodedText, decodedResult) {
 }
 
 function onScanFailure(error) {
-    // Игнорируем ошибки сканирования (камера просто ищет QR)
+    // Игнорируем — камера просто ищет QR
 }
 
-// Ручной ввод номера
+// Ручной ввод
 btnManual.addEventListener('click', () => {
     const val = manualInvInput.value.trim();
     if (val) {
@@ -300,7 +295,7 @@ btnSend.addEventListener('click', async () => {
         if (!r.ok) throw new Error('Ошибка загрузки запроса: ' + r.status + ' ' + await r.text());
         
         log('✅ Запрос загружен, жду ответ...');
-        statusEl.innerHTML = '<span class="spin">⏳</span> Запрос отправлен! Обрабатываю...';
+        statusEl.innerHTML = '<span class="spin"></span> Запрос отправлен! Обрабатываю...';
         
         // Ждём ответ (до 2 минут, проверка каждые 2 сек)
         for (let i = 0; i < 60; i++) {
@@ -314,7 +309,6 @@ btnSend.addEventListener('click', async () => {
             if (!lr.ok) continue;
             
             const lj = await lr.json();
-            // Ищем файл result_TIMESTAMP.txt
             const found = lj.find(it => it.name === `result_${ts}.txt`);
             
             if (found) {
@@ -333,12 +327,11 @@ btnSend.addEventListener('click', async () => {
                 resultEl.innerHTML = '<div class="result-box">' + decoded.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>';
                 log('✅ Результат отображён!');
                 
-                // Очищаем поле номера для следующего сканирования
                 invNumberInput.value = '';
                 return;
             }
         }
-        statusEl.innerHTML = '⚠️ Сервер не ответил за 2 минуты.';
+        statusEl.innerHTML = '️ Сервер не ответил за 2 минуты.';
         log('⚠️ Таймаут');
     } catch (err) {
         statusEl.innerHTML = '❌ Ошибка: ' + err.message;
