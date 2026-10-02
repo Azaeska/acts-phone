@@ -174,7 +174,7 @@ document.getElementById('camera').addEventListener('change', async e => {
 
         // Ждём результат на GitHub (до 2 минут, проверка каждые 5 сек)
         for (let i = 0; i < 24; i++) {
-            await sleep(5000);
+            await sleep(2000);
             
             const resultApiUrl = GITHUB_API + '/' + RESULTS_PATH;
             const lr = await fetch(resultApiUrl, {
