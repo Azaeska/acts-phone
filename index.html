@@ -61,7 +61,7 @@
 </head>
 <body>
 <div class="card">
-    <h1> Генератор Актов</h1>
+    <h1>📋 Генератор Актов</h1>
     <p class="sub">Выбери специалиста и сфотографируй QR</p>
 
     <div class="form-group">
@@ -110,6 +110,36 @@ function b64DecodeUnicode(str) {
     return new TextDecoder('utf-8').decode(byteArray);
 }
 
+// Сжатие изображения через canvas (уменьшаем до maxSize px по длинной стороне)
+function compressImage(file, maxSize) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+            let { width, height } = img;
+            if (Math.max(width, height) > maxSize) {
+                if (width > height) {
+                    height = (height / width) * maxSize;
+                    width = maxSize;
+                } else {
+                    width = (width / height) * maxSize;
+                    height = maxSize;
+                }
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            canvas.toBlob(blob => {
+                if (blob) resolve(blob);
+                else reject(new Error('Ошибка сжатия'));
+            }, 'image/jpeg', 0.85);
+        };
+        img.onerror = reject;
+        img.src = URL.createObjectURL(file);
+    });
+}
+
 // Загружаем список специалистов с GitHub
 async function loadSpecialists() {
     log('Загружаю список специалистов с GitHub...');
@@ -136,7 +166,7 @@ async function loadSpecialists() {
         });
         log('✅ Список загружен!');
     } catch (err) {
-        log(' Ошибка: ' + err.message);
+        log('❌ Ошибка: ' + err.message);
         specialistSelect.innerHTML = '<option value="">Ошибка загрузки</option>';
     }
 }
@@ -160,20 +190,26 @@ document.getElementById('camera').addEventListener('change', async e => {
     const name = safeName + '_' + ts + '.jpg';
 
     try {
+        statusEl.innerHTML = '<span class="spin">⏳</span> Сжимаю фото...';
+        
+        // Сжимаем фото через canvas (уменьшаем до 1600px)
+        const compressedBlob = await compressImage(file, 1600);
+        log('Фото сжато: ' + (compressedBlob.size / 1024).toFixed(0) + ' КБ');
+        
         statusEl.innerHTML = '<span class="spin">⏳</span> Отправляю фото...';
         
         const up = await fetch(API + '/resources/upload?path=' + encodeURIComponent('/acts-bot/inbox/' + name) + '&overwrite=true', { headers: H });
         const upj = await up.json();
         if (!upj.href) throw new Error('Не удалось получить ссылку для загрузки');
         
-        const put = await fetch(upj.href, { method: 'PUT', body: file });
+        const put = await fetch(upj.href, { method: 'PUT', body: compressedBlob });
         if (put.status !== 201) throw new Error('Ошибка загрузки: ' + put.status);
 
         statusEl.innerHTML = '<span class="spin">⏳</span> Фото отправлено! Обрабатываю...';
         log('Фото загружено, жду результат на GitHub...');
 
-        // Ждём результат на GitHub (до 2 минут, проверка каждые 5 сек)
-        for (let i = 0; i < 24; i++) {
+        // Ждём результат на GitHub (до 3 минут, проверка каждые 2 сек)
+        for (let i = 0; i < 90; i++) {
             await sleep(2000);
             
             const resultApiUrl = GITHUB_API + '/' + RESULTS_PATH;
@@ -181,10 +217,7 @@ document.getElementById('camera').addEventListener('change', async e => {
                 headers: { 'Accept': 'application/vnd.github.v3+json' }
             });
             
-            if (!lr.ok) {
-                log('Папка results ещё не доступна');
-                continue;
-            }
+            if (!lr.ok) continue;
             
             const lj = await lr.json();
             
@@ -209,7 +242,7 @@ document.getElementById('camera').addEventListener('change', async e => {
                 return;
             }
         }
-        statusEl.innerHTML = '⚠️ Сервер не ответил за 2 минуты. Проверь, запущен ли бот.';
+        statusEl.innerHTML = '⚠️ Сервер не ответил за 3 минуты. Проверь, запущен ли бот.';
         log('⚠️ Таймаут ожидания результата');
     } catch (err) {
         statusEl.innerHTML = '❌ Ошибка: ' + err.message;
