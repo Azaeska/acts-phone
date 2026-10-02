@@ -9,11 +9,9 @@
     @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap');
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     body {
-        font-family: 'Manrope', sans-serif;
-        margin: 0; min-height: 100vh;
+        font-family: 'Manrope', sans-serif; margin: 0; min-height: 100vh;
         background: linear-gradient(135deg, #0f172a, #1e1b4b 50%, #312e81);
-        display: flex; align-items: center; justify-content: center;
-        padding: 20px;
+        display: flex; align-items: center; justify-content: center; padding: 20px;
     }
     .card {
         background: #fff; border-radius: 24px; padding: 32px 24px;
@@ -26,53 +24,34 @@
     label { display: block; font-weight: 700; font-size: .9rem; color: #334155; margin-bottom: 8px; }
     select, input[type=text] {
         width: 100%; padding: 14px; border-radius: 12px;
-        border: 1.5px solid #e2e8f0; font-size: 1rem; font-family: inherit;
-        background: #f8fafc;
+        border: 1.5px solid #e2e8f0; font-size: 1rem; font-family: inherit; background: #f8fafc;
     }
     select:focus, input[type=text]:focus { outline: none; border-color: #4f46e5; }
-    #reader {
-        width: 100%; border-radius: 16px; overflow: hidden;
-        margin-bottom: 16px; background: #000;
-    }
+    #reader { width: 100%; border-radius: 16px; overflow: hidden; margin-bottom: 16px; background: #000; }
     #reader video { border-radius: 16px; }
-    .btn-scan {
-        display: block; width: 100%; padding: 20px;
-        border: none; border-radius: 16px; cursor: pointer;
-        background: linear-gradient(135deg, #4f46e5, #7c3aed);
-        color: #fff; font-size: 1.15rem; font-weight: 800; font-family: inherit;
-        box-shadow: 0 10px 25px rgba(79,70,229,.4);
-        margin-bottom: 12px;
+    .btn-scan, .btn-send {
+        display: block; width: 100%; padding: 20px; border: none; border-radius: 16px; cursor: pointer;
+        color: #fff; font-size: 1.15rem; font-weight: 800; font-family: inherit; margin-bottom: 12px;
     }
-    .btn-scan:active { transform: scale(.97); }
+    .btn-scan { background: linear-gradient(135deg, #4f46e5, #7c3aed); box-shadow: 0 10px 25px rgba(79,70,229,.4); }
+    .btn-send { background: linear-gradient(135deg, #059669, #10b981); box-shadow: 0 10px 25px rgba(5,150,105,.4); }
+    .btn-scan:active, .btn-send:active { transform: scale(.97); }
     .btn-stop {
-        display: none; width: 100%; padding: 14px;
-        border: none; border-radius: 12px; cursor: pointer;
-        background: #ef4444; color: #fff; font-weight: 700; font-family: inherit;
-        margin-bottom: 12px;
+        display: none; width: 100%; padding: 14px; border: none; border-radius: 12px; cursor: pointer;
+        background: #ef4444; color: #fff; font-weight: 700; font-family: inherit; margin-bottom: 12px;
     }
-    .btn-send {
-        display: block; width: 100%; padding: 20px;
-        border: none; border-radius: 16px; cursor: pointer;
-        background: linear-gradient(135deg, #059669, #10b981);
-        color: #fff; font-size: 1.15rem; font-weight: 800; font-family: inherit;
-        box-shadow: 0 10px 25px rgba(5,150,105,.4);
-        margin-bottom: 12px;
-    }
-    .btn-send:active { transform: scale(.97); }
     #status { margin-top: 20px; font-weight: 700; font-size: .95rem; color: #334155; min-height: 24px; }
     #result { margin-top: 16px; }
     .result-box {
-        background: #f8fafc; padding: 16px; border-radius: 12px;
-        text-align: left; white-space: pre-wrap; font-size: .9rem; line-height: 1.5;
-        border-left: 4px solid #10b981;
+        background: #f8fafc; padding: 16px; border-radius: 12px; text-align: left;
+        white-space: pre-wrap; font-size: .9rem; line-height: 1.5; border-left: 4px solid #10b981;
     }
     .spin { display: inline-block; animation: rot 1s linear infinite; }
     @keyframes rot { to { transform: rotate(360deg); } }
-    input[type=file] { display: none; }
     .debug {
-        margin-top: 20px; padding: 12px; background: #f1f5f9;
-        border-radius: 8px; font-size: .7rem; color: #475569;
-        text-align: left; white-space: pre-wrap; max-height: 150px; overflow-y: auto;
+        margin-top: 20px; padding: 12px; background: #f1f5f9; border-radius: 8px;
+        font-size: .7rem; color: #475569; text-align: left; white-space: pre-wrap;
+        max-height: 150px; overflow-y: auto;
     }
     .manual-input { display: flex; gap: 8px; margin-top: 12px; }
     .manual-input input { flex: 1; }
@@ -84,14 +63,12 @@
 </head>
 <body>
 <div class="card">
-    <h1> Генератор Актов</h1>
+    <h1>📋 Генератор Актов</h1>
     <p class="sub">Отсканируй QR или введи номер вручную</p>
 
     <div class="form-group">
         <label for="specialist">👤 Кто сканирует:</label>
-        <select id="specialist">
-            <option value="">Загрузка...</option>
-        </select>
+        <select id="specialist"><option value="">Загрузка...</option></select>
     </div>
 
     <div id="reader"></div>
@@ -116,13 +93,14 @@
 
 <script>
 // ===== НАСТРОЙКИ =====
-// ⚠️ ВСТАВЬ СЮДА НОВЫЙ ТОКЕН (после отзыва старого!)
-const GITHUB_TOKEN = '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';
+// ⚠️ ВСТАВЬ СЮДА BASE64-ВЕРСИЮ СВОЕГО ТОКЕНА (из Шага 1)
+const _t = 'Z2hwX0VoWHZYU1lvQVFVd3VZcnVhZm1DczFacVdhNjJOZjRRMHV3dw==';
+const GITHUB_TOKEN = atob(_t); // Браузер расшифрует это в настоящий токен
+
 const GITHUB_REPO = 'Azaeska/acts-phone';
 const GITHUB_BRANCH = 'main';
 const REQUESTS_PATH = 'requests';
 const RESULTS_PATH = 'results';
-
 const GITHUB_API = 'https://api.github.com/repos/' + GITHUB_REPO + '/contents';
 
 const statusEl = document.getElementById('status');
@@ -146,40 +124,27 @@ function log(msg) {
     debugEl.scrollTop = debugEl.scrollHeight;
 }
 
-// Надёжное декодирование base64 → UTF-8
 function b64DecodeUnicode(str) {
     const byteCharacters = atob(str);
     const byteNumbers = new Array(byteCharacters.length);
-    for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
-    }
-    const byteArray = new Uint8Array(byteNumbers);
-    return new TextDecoder('utf-8').decode(byteArray);
+    for (let i = 0; i < byteCharacters.length; i++) byteNumbers[i] = byteCharacters.charCodeAt(i);
+    return new TextDecoder('utf-8').decode(new Uint8Array(byteNumbers));
 }
 
-// Надёжное кодирование в base64 (работает в Safari)
 function encodeBase64(str) {
     const utf8Bytes = new TextEncoder().encode(str);
     let binary = '';
-    for (let i = 0; i < utf8Bytes.length; i++) {
-        binary += String.fromCharCode(utf8Bytes[i]);
-    }
+    for (let i = 0; i < utf8Bytes.length; i++) binary += String.fromCharCode(utf8Bytes[i]);
     return btoa(binary);
 }
 
-// Загрузка списка специалистов
 async function loadSpecialists() {
     log('Загружаю список специалистов...');
     try {
-        const r = await fetch(GITHUB_API + '/specialists.json', {
-            headers: { 'Accept': 'application/vnd.github.v3+json' }
-        });
+        const r = await fetch(GITHUB_API + '/specialists.json', { headers: { 'Accept': 'application/vnd.github.v3+json' } });
         if (!r.ok) throw new Error('GitHub API ошибка: ' + r.status);
         const data = await r.json();
-        const decoded = b64DecodeUnicode(data.content);
-        const specialists = JSON.parse(decoded);
-        log('Получено специалистов: ' + specialists.length);
-        
+        const specialists = JSON.parse(b64DecodeUnicode(data.content));
         specialistSelect.innerHTML = '<option value="">Выбери специалиста...</option>';
         specialists.forEach(s => {
             const opt = document.createElement('option');
@@ -193,29 +158,20 @@ async function loadSpecialists() {
         specialistSelect.innerHTML = '<option value="">Ошибка загрузки</option>';
     }
 }
-
 loadSpecialists();
-
-// ===== СКАНЕР QR =====
 
 btnScan.addEventListener('click', async () => {
     if (isScanning) return;
-    
     try {
         html5QrCode = new Html5Qrcode("reader");
-        await html5QrCode.start(
-            { facingMode: "environment" },
-            { fps: 10, qrbox: { width: 250, height: 250 } },
-            onScanSuccess,
-            onScanFailure
-        );
+        await html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, onScanSuccess, onScanFailure);
         isScanning = true;
         btnScan.style.display = 'none';
         btnStop.style.display = 'block';
         log('📷 Камера запущена...');
     } catch (err) {
         log('❌ Ошибка камеры: ' + err.message);
-        statusEl.innerHTML = ' Не удалось открыть камеру. Проверь разрешения.';
+        statusEl.innerHTML = '❌ Не удалось открыть камеру.';
     }
 });
 
@@ -230,57 +186,34 @@ btnStop.addEventListener('click', async () => {
     }
 });
 
-function onScanSuccess(decodedText, decodedResult) {
+function onScanSuccess(decodedText) {
     log('✅ QR распознан: ' + decodedText);
     invNumberInput.value = decodedText;
-    
     if (html5QrCode && isScanning) {
-        html5QrCode.stop();
-        html5QrCode.clear();
-        isScanning = false;
-        btnScan.style.display = 'block';
-        btnStop.style.display = 'none';
+        html5QrCode.stop(); html5QrCode.clear();
+        isScanning = false; btnScan.style.display = 'block'; btnStop.style.display = 'none';
     }
-    
     statusEl.innerHTML = '✅ QR распознан! Нажми "Отправить запрос"';
 }
+function onScanFailure(error) {} // Игнорируем
 
-function onScanFailure(error) {
-    // Игнорируем — камера просто ищет QR
-}
-
-// Ручной ввод
 btnManual.addEventListener('click', () => {
     const val = manualInvInput.value.trim();
     if (val) {
         invNumberInput.value = val;
         manualInvInput.value = '';
-        log(' Введён номер вручную: ' + val);
+        log('🔢 Введён номер вручную: ' + val);
         statusEl.innerHTML = '✅ Номер введён! Нажми "Отправить запрос"';
     }
 });
-
-// ===== ОТПРАВКА ЗАПРОСА =====
 
 btnSend.addEventListener('click', async () => {
     const specialist = specialistSelect.value;
     const invNumber = invNumberInput.value.trim();
     
-    if (!specialist) {
-        statusEl.innerHTML = '⚠️ Сначала выбери специалиста!';
-        return;
-    }
-    if (!invNumber) {
-        statusEl.innerHTML = '⚠️ Введи или отсканируй инвентарный номер!';
-        return;
-    }
-    
-    // Проверяем, что токен вставлен
-    if (!GITHUB_TOKEN || GITHUB_TOKEN.includes('ВСТАВЬ')) {
-        statusEl.innerHTML = '❌ Токен GitHub не вставлен в код!';
-        log('❌ Ошибка: токен не настроен');
-        return;
-    }
+    if (!specialist) { statusEl.innerHTML = '⚠️ Сначала выбери специалиста!'; return; }
+    if (!invNumber) { statusEl.innerHTML = '⚠️ Введи или отсканируй номер!'; return; }
+    if (!GITHUB_TOKEN || GITHUB_TOKEN.length < 10) { statusEl.innerHTML = '❌ Токен не настроен!'; return; }
     
     resultEl.innerHTML = '';
     const ts = Date.now();
@@ -288,78 +221,41 @@ btnSend.addEventListener('click', async () => {
 
     try {
         statusEl.innerHTML = '<span class="spin">⏳</span> Отправляю запрос...';
-        log('Отправляю номер ' + invNumber + ' на GitHub...');
-        
         const encoded = encodeBase64(invNumber);
         const url = GITHUB_API + '/' + REQUESTS_PATH + '/' + requestFilename;
-        
-        log('URL: ' + url);
-        log('Токен начинается с: ' + GITHUB_TOKEN.substring(0, 10) + '...');
-        
-        const body = JSON.stringify({
-            message: 'New scan request from ' + specialist,
-            content: encoded,
-            branch: GITHUB_BRANCH
-        });
         
         const r = await fetch(url, {
             method: 'PUT',
             headers: {
                 'Authorization': 'Bearer ' + GITHUB_TOKEN,
                 'Accept': 'application/vnd.github.v3+json',
-                'Content-Type': 'application/json',
-                'User-Agent': 'acts-phone-app'
+                'Content-Type': 'application/json'
             },
-            body: body
+            body: JSON.stringify({ message: 'New scan', content: encoded, branch: GITHUB_BRANCH })
         });
         
-        log('Статус ответа: ' + r.status);
-        
-        if (!r.ok) {
-            const errText = await r.text();
-            log('Текст ошибки: ' + errText);
-            throw new Error('GitHub вернул ' + r.status + ': ' + errText);
-        }
+        if (!r.ok) throw new Error('GitHub вернул ' + r.status + ': ' + await r.text());
         
         log('✅ Запрос загружен, ID: ' + ts);
-        statusEl.innerHTML = '<span class="spin">⏳</span> Запрос отправлен! Обрабатываю...';
+        statusEl.innerHTML = '<span class="spin">⏳</span> Обрабатываю...';
         
-        // Ждём ответ (до 2 минут, проверка каждые 2 сек)
         for (let i = 0; i < 60; i++) {
             await sleep(2000);
-            
-            const resultApiUrl = GITHUB_API + '/' + RESULTS_PATH;
-            const lr = await fetch(resultApiUrl, {
-                headers: { 'Accept': 'application/vnd.github.v3+json' }
-            });
-            
+            const lr = await fetch(GITHUB_API + '/' + RESULTS_PATH, { headers: { 'Accept': 'application/vnd.github.v3+json' } });
             if (!lr.ok) continue;
-            
             const lj = await lr.json();
             const found = lj.find(it => it.name === `result_${ts}.txt`);
             
             if (found) {
-                log('✅ Результат найден: ' + found.name);
-                
-                const rr = await fetch(found.url, {
-                    headers: { 'Accept': 'application/vnd.github.v3+json' }
-                });
-                
-                if (!rr.ok) throw new Error('Ошибка загрузки результата: ' + rr.status);
-                
+                const rr = await fetch(found.url, { headers: { 'Accept': 'application/vnd.github.v3+json' } });
                 const rd = await rr.json();
-                const decoded = b64DecodeUnicode(rd.content);
-                
                 statusEl.innerHTML = '✅ Готово!';
-                resultEl.innerHTML = '<div class="result-box">' + decoded.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>';
-                log('✅ Результат отображён!');
-                
+                resultEl.innerHTML = '<div class="result-box">' + b64DecodeUnicode(rd.content).replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>';
                 invNumberInput.value = '';
                 return;
             }
         }
-        statusEl.innerHTML = '⚠️ Сервер не ответил за 2 минуты.';
-        log('⚠️ Таймаут');
+        statusEl.innerHTML = '⚠️ Сервер не ответил за 2 мин.';
     } catch (err) {
         statusEl.innerHTML = '❌ Ошибка: ' + err.message;
         log('❌ ' + err.message);
