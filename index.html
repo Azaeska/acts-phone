@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Акт с телефона</title>
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap');
@@ -26,7 +26,7 @@
     select {
         width: 100%; padding: 14px; border-radius: 12px;
         border: 1.5px solid #e2e8f0; font-size: 1rem; font-family: inherit;
-        background: #f8fafc;
+        background: #f8fafc; appearance: none;
     }
     select:focus { outline: none; border-color: #4f46e5; }
     .btn-photo {
@@ -49,14 +49,14 @@
     input[type=file] { display: none; }
     .debug {
         margin-top: 20px; padding: 12px; background: #f1f5f9;
-        border-radius: 8px; font-size: .75rem; color: #475569;
-        text-align: left; white-space: pre-wrap;
+        border-radius: 8px; font-size: .7rem; color: #475569;
+        text-align: left; white-space: pre-wrap; max-height: 150px; overflow-y: auto;
     }
 </style>
 </head>
 <body>
 <div class="card">
-    <h1> Генератор Актов</h1>
+    <h1>📋 Генератор Актов</h1>
     <p class="sub">Выбери специалиста и сфотографируй</p>
 
     <div class="form-group">
@@ -75,8 +75,8 @@
 </div>
 
 <script>
-// ===== ВСТАВЬ СВОЙ ТОКЕН =====
-const TOKEN = 'y0__wgBEK-D-7IHGPyVSyDw36GgGT_TVerXZdSfzGjgDVqQcvqXIvw0';
+// ===== ВСТАВЬ СВОЙ ТОКЕН ЯНДЕКС ДИСКА СЮДА =====
+const TOKEN = 'y0__wgBEK-D-7IHGPyVSyDw36GgGT_TVerXZdSfzGjgDVqQcvqXIvw0'; 
 const API = 'https://cloud-api.yandex.net/v1/disk';
 const H = { 'Authorization': 'OAuth ' + TOKEN };
 
@@ -89,6 +89,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 function log(msg) {
     console.log(msg);
     debugEl.textContent += msg + '\n';
+    debugEl.scrollTop = debugEl.scrollHeight;
 }
 
 // Загружаем список специалистов
@@ -98,17 +99,16 @@ async function loadSpecialists() {
         const r = await fetch(API + '/resources/download?path=' + encodeURIComponent('/acts-bot/specialists.json'), { headers: H });
         log('Статус ответа: ' + r.status);
         
-        if (r.status === 401 || r.status === 403) {
-            throw new Error('Неверный токен или нет доступа');
-        }
-        if (r.status === 404) {
-            throw new Error('Файл specialists.json не найден на Диске');
-        }
+        if (r.status === 401 || r.status === 403) throw new Error('Неверный токен или нет доступа');
+        if (r.status === 404) throw new Error('Файл specialists.json не найден на Диске');
         
         const j = await r.json();
-        log('Ссылка на скачивание: ' + j.href);
+        log('Ссылка получена, скачиваю файл...');
         
-        const fr = await fetch(j.href);
+        // ВАЖНО: передаём заголовок H и сюда!
+        const fr = await fetch(j.href, { headers: H });
+        if (!fr.ok) throw new Error('Ошибка скачивания файла: ' + fr.status);
+        
         const specialists = await fr.json();
         log('Получено специалистов: ' + specialists.length);
         
@@ -119,15 +119,17 @@ async function loadSpecialists() {
             opt.textContent = s.fio + ' (' + s.position + ')';
             specialistSelect.appendChild(opt);
         });
-        log('✅ Список загружен!');
+        log('✅ Список успешно загружен!');
     } catch (err) {
         log('❌ Ошибка: ' + err.message);
         specialistSelect.innerHTML = '<option value="">Ошибка загрузки</option>';
     }
 }
 
+// Запускаем загрузку при старте
 loadSpecialists();
 
+// Обработка выбора файла (фото)
 document.getElementById('camera').addEventListener('change', async e => {
     const file = e.target.files[0];
     if (!file) return;
@@ -140,34 +142,51 @@ document.getElementById('camera').addEventListener('change', async e => {
     
     resultEl.innerHTML = '';
     const ts = Date.now();
-    const name = specialist.replace(/\s+/g, '_') + '_' + ts + '.jpg';
+    // Формируем уникальное имя файла
+    const safeName = specialist.replace(/[^a-zA-Zа-яА-Я0-9]/g, '_');
+    const name = safeName + '_' + ts + '.jpg';
 
     try {
         statusEl.innerHTML = '<span class="spin">⏳</span> Отправляю фото...';
+        
+        // 1. Получаем ссылку на загрузку
         const up = await fetch(API + '/resources/upload?path=' + encodeURIComponent('/acts-bot/inbox/' + name) + '&overwrite=true', { headers: H });
         const upj = await up.json();
+        if (!upj.href) throw new Error('Не удалось получить ссылку для загрузки');
+        
+        // 2. Загружаем файл
         const put = await fetch(upj.href, { method: 'PUT', body: file });
         if (put.status !== 201) throw new Error('Ошибка загрузки: ' + put.status);
 
         statusEl.innerHTML = '<span class="spin">⏳</span> Фото отправлено! Обрабатываю...';
+        log('Фото загружено, жду результат...');
 
+        // 3. Ждём результат в outbox (до 2 минут, проверка каждые 5 сек)
         for (let i = 0; i < 24; i++) {
             await sleep(5000);
             const lr = await fetch(API + '/resources?path=' + encodeURIComponent('/acts-bot/outbox'), { headers: H });
             const lj = await lr.json();
             const items = (lj._embedded && lj._embedded.items) || [];
-            const found = items.find(it => it.name.indexOf(specialist.replace(/\s+/g, '_') + '_' + ts) === 0);
+            
+            // Ищем файл, который начинается с нашего уникального имени
+            const found = items.find(it => it.name.startsWith(safeName + '_' + ts));
+            
             if (found) {
+                log('Результат найден: ' + found.name);
                 const dr = await fetch(API + '/resources/download?path=' + encodeURIComponent(found.path), { headers: H });
                 const dj = await dr.json();
+                
                 statusEl.innerHTML = '✅ Готово!';
                 resultEl.innerHTML = '<a href="' + dj.href + '" target="_blank">📥 Скачать результат</a>';
+                log('✅ Документ готов к скачиванию!');
                 return;
             }
         }
         statusEl.innerHTML = '⚠️ Сервер не ответил за 2 минуты. Проверь, запущен ли бот.';
+        log('⚠️ Таймаут ожидания результата');
     } catch (err) {
         statusEl.innerHTML = '❌ Ошибка: ' + err.message;
+        log('❌ Критическая ошибка: ' + err.message);
     }
 });
 </script>
