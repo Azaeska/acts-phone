@@ -21,6 +21,14 @@
     }
     h1 { font-size: 1.4rem; margin: 0 0 6px; color: #0f172a; }
     p.sub { color: #64748b; font-size: .85rem; margin: 0 0 24px; }
+    .form-group { margin-bottom: 20px; text-align: left; }
+    label { display: block; font-weight: 700; font-size: .9rem; color: #334155; margin-bottom: 8px; }
+    select {
+        width: 100%; padding: 14px; border-radius: 12px;
+        border: 1.5px solid #e2e8f0; font-size: 1rem; font-family: inherit;
+        background: #f8fafc;
+    }
+    select:focus { outline: none; border-color: #4f46e5; }
     .btn-photo {
         display: block; width: 100%; padding: 20px;
         border: none; border-radius: 16px; cursor: pointer;
@@ -44,7 +52,14 @@
 <body>
 <div class="card">
     <h1>📋 Генератор Актов</h1>
-    <p class="sub">Сфотографируй — получи документ</p>
+    <p class="sub">Выбери специалиста и сфотографируй</p>
+
+    <div class="form-group">
+        <label for="specialist">👤 Кто фоткает:</label>
+        <select id="specialist">
+            <option value="">Загрузка...</option>
+        </select>
+    </div>
 
     <label class="btn-photo" for="camera">📷 Сфотографировать</label>
     <input type="file" id="camera" accept="image/*" capture="environment">
@@ -61,14 +76,45 @@ const H = { 'Authorization': 'OAuth ' + TOKEN };
 
 const statusEl = document.getElementById('status');
 const resultEl = document.getElementById('result');
+const specialistSelect = document.getElementById('specialist');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// Загружаем список специалистов
+async function loadSpecialists() {
+    try {
+        const r = await fetch(API + '/resources/download?path=' + encodeURIComponent('/acts-bot/specialists.json'), { headers: H });
+        const j = await r.json();
+        const fr = await fetch(j.href);
+        const specialists = await fr.json();
+        
+        specialistSelect.innerHTML = '<option value="">Выбери специалиста...</option>';
+        specialists.forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s.fio;
+            opt.textContent = s.fio + ' (' + s.position + ')';
+            specialistSelect.appendChild(opt);
+        });
+    } catch (err) {
+        specialistSelect.innerHTML = '<option value="">Ошибка загрузки</option>';
+        console.error(err);
+    }
+}
+
+loadSpecialists();
 
 document.getElementById('camera').addEventListener('change', async e => {
     const file = e.target.files[0];
     if (!file) return;
+    
+    const specialist = specialistSelect.value;
+    if (!specialist) {
+        statusEl.innerHTML = '⚠️ Сначала выбери специалиста!';
+        return;
+    }
+    
     resultEl.innerHTML = '';
     const ts = Date.now();
-    const name = 'PHOTO_' + ts + '.jpg';
+    const name = specialist.replace(/\s+/g, '_') + '_' + ts + '.jpg';
 
     try {
         statusEl.innerHTML = '<span class="spin">⏳</span> Отправляю фото...';
@@ -85,7 +131,7 @@ document.getElementById('camera').addEventListener('change', async e => {
             const lr = await fetch(API + '/resources?path=' + encodeURIComponent('/acts-bot/outbox'), { headers: H });
             const lj = await lr.json();
             const items = (lj._embedded && lj._embedded.items) || [];
-            const found = items.find(it => it.name.indexOf('result_PHOTO_' + ts) === 0);
+            const found = items.find(it => it.name.indexOf(specialist.replace(/\s+/g, '_') + '_' + ts) === 0);
             if (found) {
                 const dr = await fetch(API + '/resources/download?path=' + encodeURIComponent(found.path), { headers: H });
                 const dj = await dr.json();
