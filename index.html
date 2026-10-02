@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Акт с телефона</title>
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap');
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body {
+        font-family: 'Manrope', sans-serif;
+        margin: 0; min-height: 100vh;
+        background: linear-gradient(135deg, #0f172a, #1e1b4b 50%, #312e81);
+        display: flex; align-items: center; justify-content: center;
+        padding: 20px;
+    }
+    .card {
+        background: #fff; border-radius: 24px; padding: 32px 24px;
+        width: 100%; max-width: 400px; text-align: center;
+        box-shadow: 0 25px 70px rgba(0,0,0,.5);
+    }
+    h1 { font-size: 1.4rem; margin: 0 0 6px; color: #0f172a; }
+    p.sub { color: #64748b; font-size: .85rem; margin: 0 0 24px; }
+    .btn-photo {
+        display: block; width: 100%; padding: 20px;
+        border: none; border-radius: 16px; cursor: pointer;
+        background: linear-gradient(135deg, #4f46e5, #7c3aed);
+        color: #fff; font-size: 1.15rem; font-weight: 800; font-family: inherit;
+        box-shadow: 0 10px 25px rgba(79,70,229,.4);
+    }
+    .btn-photo:active { transform: scale(.97); }
+    #status { margin-top: 20px; font-weight: 700; font-size: .95rem; color: #334155; min-height: 24px; }
+    #result { margin-top: 16px; }
+    #result a {
+        display: block; padding: 14px; border-radius: 12px;
+        background: linear-gradient(135deg, #059669, #10b981);
+        color: #fff; font-weight: 800; text-decoration: none;
+    }
+    .spin { display: inline-block; animation: rot 1s linear infinite; }
+    @keyframes rot { to { transform: rotate(360deg); } }
+    input[type=file] { display: none; }
+</style>
+</head>
+<body>
+<div class="card">
+    <h1>📋 Генератор Актов</h1>
+    <p class="sub">Сфотографируй — получи документ</p>
+
+    <label class="btn-photo" for="camera">📷 Сфотографировать</label>
+    <input type="file" id="camera" accept="image/*" capture="environment">
+
+    <div id="status"></div>
+    <div id="result"></div>
+</div>
+
+<script>
+// ===== ВСТАВЬ СВОЙ ТОКЕН =====
+const TOKEN = 'y0__wgBEK-D-7IHGPyVSyDw36GgGT_TVerXZdSfzGjgDVqQcvqXIvw0';
+const API = 'https://cloud-api.yandex.net/v1/disk';
+const H = { 'Authorization': 'OAuth ' + TOKEN };
+
+const statusEl = document.getElementById('status');
+const resultEl = document.getElementById('result');
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+document.getElementById('camera').addEventListener('change', async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    resultEl.innerHTML = '';
+    const ts = Date.now();
+    const name = 'PHOTO_' + ts + '.jpg';
+
+    try {
+        statusEl.innerHTML = '<span class="spin">⏳</span> Отправляю фото...';
+        const up = await fetch(API + '/resources/upload?path=' + encodeURIComponent('/acts-bot/inbox/' + name) + '&overwrite=true', { headers: H });
+        const upj = await up.json();
+        const put = await fetch(upj.href, { method: 'PUT', body: file });
+        if (put.status !== 201) throw new Error('Ошибка загрузки: ' + put.status);
+
+        statusEl.innerHTML = '<span class="spin">⏳</span> Фото отправлено! Обрабатываю...';
+
+        // ждём результат в outbox (до 2 минут)
+        for (let i = 0; i < 24; i++) {
+            await sleep(5000);
+            const lr = await fetch(API + '/resources?path=' + encodeURIComponent('/acts-bot/outbox'), { headers: H });
+            const lj = await lr.json();
+            const items = (lj._embedded && lj._embedded.items) || [];
+            const found = items.find(it => it.name.indexOf('result_PHOTO_' + ts) === 0);
+            if (found) {
+                const dr = await fetch(API + '/resources/download?path=' + encodeURIComponent(found.path), { headers: H });
+                const dj = await dr.json();
+                statusEl.innerHTML = '✅ Готово!';
+                resultEl.innerHTML = '<a href="' + dj.href + '" target="_blank">📥 Скачать результат</a>';
+                return;
+            }
+        }
+        statusEl.innerHTML = '⚠️ Сервер не ответил за 2 минуты. Проверь, запущен ли бот.';
+    } catch (err) {
+        statusEl.innerHTML = '❌ Ошибка: ' + err.message;
+    }
+});
+</script>
+</body>
+</html>
