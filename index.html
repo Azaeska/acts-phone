@@ -84,7 +84,7 @@
 </head>
 <body>
 <div class="card">
-    <h1>📋 Генератор Актов</h1>
+    <h1> Генератор Актов</h1>
     <p class="sub">Отсканируй QR или введи номер вручную</p>
 
     <div class="form-group">
@@ -99,7 +99,7 @@
     <button class="btn-stop" id="btnStop">⏹ Остановить камеру</button>
 
     <div class="form-group">
-        <label for="invNumber"> Инвентарный номер:</label>
+        <label for="invNumber">🔢 Инвентарный номер:</label>
         <input type="text" id="invNumber" placeholder="Будет заполнен автоматически" readonly>
         <div class="manual-input">
             <input type="text" id="manualInv" placeholder="Или введи вручную">
@@ -116,8 +116,8 @@
 
 <script>
 // ===== НАСТРОЙКИ =====
-// ВСТАВЬ СЮДА СВОЙ GITHUB ТОКЕН (с правами на запись в requests/)
-const GITHUB_TOKEN = '';
+// ⚠️ ВСТАВЬ СЮДА НОВЫЙ ТОКЕН (после отзыва старого!)
+const GITHUB_TOKEN = 'ghp_ВСТАВЬ_СВОЙ_НОВЫЙ_ТОКЕН_СЮДА';
 const GITHUB_REPO = 'Azaeska/acts-phone';
 const GITHUB_BRANCH = 'main';
 const REQUESTS_PATH = 'requests';
@@ -155,6 +155,16 @@ function b64DecodeUnicode(str) {
     }
     const byteArray = new Uint8Array(byteNumbers);
     return new TextDecoder('utf-8').decode(byteArray);
+}
+
+// Надёжное кодирование в base64 (работает в Safari)
+function encodeBase64(str) {
+    const utf8Bytes = new TextEncoder().encode(str);
+    let binary = '';
+    for (let i = 0; i < utf8Bytes.length; i++) {
+        binary += String.fromCharCode(utf8Bytes[i]);
+    }
+    return btoa(binary);
 }
 
 // Загрузка списка специалистов
@@ -202,10 +212,10 @@ btnScan.addEventListener('click', async () => {
         isScanning = true;
         btnScan.style.display = 'none';
         btnStop.style.display = 'block';
-        log(' Камера запущена...');
+        log('📷 Камера запущена...');
     } catch (err) {
         log('❌ Ошибка камеры: ' + err.message);
-        statusEl.innerHTML = '❌ Не удалось открыть камеру. Проверь разрешения.';
+        statusEl.innerHTML = ' Не удалось открыть камеру. Проверь разрешения.';
     }
 });
 
@@ -245,7 +255,7 @@ btnManual.addEventListener('click', () => {
     if (val) {
         invNumberInput.value = val;
         manualInvInput.value = '';
-        log('🔢 Введён номер вручную: ' + val);
+        log(' Введён номер вручную: ' + val);
         statusEl.innerHTML = '✅ Номер введён! Нажми "Отправить запрос"';
     }
 });
@@ -261,41 +271,58 @@ btnSend.addEventListener('click', async () => {
         return;
     }
     if (!invNumber) {
-        statusEl.innerHTML = '️ Введи или отсканируй инвентарный номер!';
+        statusEl.innerHTML = '⚠️ Введи или отсканируй инвентарный номер!';
+        return;
+    }
+    
+    // Проверяем, что токен вставлен
+    if (!GITHUB_TOKEN || GITHUB_TOKEN.includes('ВСТАВЬ')) {
+        statusEl.innerHTML = '❌ Токен GitHub не вставлен в код!';
+        log('❌ Ошибка: токен не настроен');
         return;
     }
     
     resultEl.innerHTML = '';
     const ts = Date.now();
     const requestFilename = `${ts}.txt`;
-    const requestContent = invNumber;
 
     try {
         statusEl.innerHTML = '<span class="spin">⏳</span> Отправляю запрос...';
         log('Отправляю номер ' + invNumber + ' на GitHub...');
         
-        // Кодируем в base64
-        const encoded = btoa(unescape(encodeURIComponent(requestContent)));
+        const encoded = encodeBase64(invNumber);
         const url = GITHUB_API + '/' + REQUESTS_PATH + '/' + requestFilename;
+        
+        log('URL: ' + url);
+        log('Токен начинается с: ' + GITHUB_TOKEN.substring(0, 10) + '...');
+        
+        const body = JSON.stringify({
+            message: 'New scan request from ' + specialist,
+            content: encoded,
+            branch: GITHUB_BRANCH
+        });
         
         const r = await fetch(url, {
             method: 'PUT',
             headers: {
-                'Authorization': 'token ' + GITHUB_TOKEN,
+                'Authorization': 'Bearer ' + GITHUB_TOKEN,
                 'Accept': 'application/vnd.github.v3+json',
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'User-Agent': 'acts-phone-app'
             },
-            body: JSON.stringify({
-                message: 'New scan request',
-                content: encoded,
-                branch: GITHUB_BRANCH
-            })
+            body: body
         });
         
-        if (!r.ok) throw new Error('Ошибка загрузки запроса: ' + r.status + ' ' + await r.text());
+        log('Статус ответа: ' + r.status);
         
-        log('✅ Запрос загружен, жду ответ...');
-        statusEl.innerHTML = '<span class="spin"></span> Запрос отправлен! Обрабатываю...';
+        if (!r.ok) {
+            const errText = await r.text();
+            log('Текст ошибки: ' + errText);
+            throw new Error('GitHub вернул ' + r.status + ': ' + errText);
+        }
+        
+        log('✅ Запрос загружен, ID: ' + ts);
+        statusEl.innerHTML = '<span class="spin">⏳</span> Запрос отправлен! Обрабатываю...';
         
         // Ждём ответ (до 2 минут, проверка каждые 2 сек)
         for (let i = 0; i < 60; i++) {
@@ -331,7 +358,7 @@ btnSend.addEventListener('click', async () => {
                 return;
             }
         }
-        statusEl.innerHTML = '️ Сервер не ответил за 2 минуты.';
+        statusEl.innerHTML = '⚠️ Сервер не ответил за 2 минуты.';
         log('⚠️ Таймаут');
     } catch (err) {
         statusEl.innerHTML = '❌ Ошибка: ' + err.message;
