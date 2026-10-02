@@ -75,7 +75,7 @@
 </div>
 
 <script>
-// ===== ВСТАВЬ СВОЙ ТОКЕН ЯНДЕКС ДИСКА СЮДА =====
+// ===== ТВОЙ ТОКЕН ЯНДЕКС ДИСКА =====
 const TOKEN = 'y0__wgBEK-D-7IHGPyVSyDw36GgGT_TVerXZdSfzGjgDVqQcvqXIvw0'; 
 const API = 'https://cloud-api.yandex.net/v1/disk';
 const H = { 'Authorization': 'OAuth ' + TOKEN };
@@ -142,33 +142,28 @@ document.getElementById('camera').addEventListener('change', async e => {
     
     resultEl.innerHTML = '';
     const ts = Date.now();
-    // Формируем уникальное имя файла
     const safeName = specialist.replace(/[^a-zA-Zа-яА-Я0-9]/g, '_');
     const name = safeName + '_' + ts + '.jpg';
 
     try {
         statusEl.innerHTML = '<span class="spin">⏳</span> Отправляю фото...';
         
-        // 1. Получаем ссылку на загрузку
         const up = await fetch(API + '/resources/upload?path=' + encodeURIComponent('/acts-bot/inbox/' + name) + '&overwrite=true', { headers: H });
         const upj = await up.json();
         if (!upj.href) throw new Error('Не удалось получить ссылку для загрузки');
         
-        // 2. Загружаем файл
         const put = await fetch(upj.href, { method: 'PUT', body: file });
         if (put.status !== 201) throw new Error('Ошибка загрузки: ' + put.status);
 
         statusEl.innerHTML = '<span class="spin">⏳</span> Фото отправлено! Обрабатываю...';
         log('Фото загружено, жду результат...');
 
-        // 3. Ждём результат в outbox (до 2 минут, проверка каждые 5 сек)
         for (let i = 0; i < 24; i++) {
             await sleep(5000);
             const lr = await fetch(API + '/resources?path=' + encodeURIComponent('/acts-bot/outbox'), { headers: H });
             const lj = await lr.json();
             const items = (lj._embedded && lj._embedded.items) || [];
             
-            // Ищем файл, который начинается с нашего уникального имени
             const found = items.find(it => it.name.startsWith(safeName + '_' + ts));
             
             if (found) {
