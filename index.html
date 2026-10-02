@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Акт с телефона</title>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap');
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -23,20 +24,35 @@
     p.sub { color: #64748b; font-size: .85rem; margin: 0 0 24px; }
     .form-group { margin-bottom: 20px; text-align: left; }
     label { display: block; font-weight: 700; font-size: .9rem; color: #334155; margin-bottom: 8px; }
-    select {
+    select, input[type=text] {
         width: 100%; padding: 14px; border-radius: 12px;
         border: 1.5px solid #e2e8f0; font-size: 1rem; font-family: inherit;
-        background: #f8fafc; appearance: none;
+        background: #f8fafc;
     }
-    select:focus { outline: none; border-color: #4f46e5; }
-    .btn-photo {
+    select:focus, input[type=text]:focus { outline: none; border-color: #4f46e5; }
+    #reader {
+        width: 100%;
+        border-radius: 16px;
+        overflow: hidden;
+        margin-bottom: 16px;
+        background: #000;
+    }
+    #reader video { border-radius: 16px; }
+    .btn-scan {
         display: block; width: 100%; padding: 20px;
         border: none; border-radius: 16px; cursor: pointer;
         background: linear-gradient(135deg, #4f46e5, #7c3aed);
         color: #fff; font-size: 1.15rem; font-weight: 800; font-family: inherit;
         box-shadow: 0 10px 25px rgba(79,70,229,.4);
+        margin-bottom: 12px;
     }
-    .btn-photo:active { transform: scale(.97); }
+    .btn-scan:active { transform: scale(.97); }
+    .btn-stop {
+        display: none; width: 100%; padding: 14px;
+        border: none; border-radius: 12px; cursor: pointer;
+        background: #ef4444; color: #fff; font-weight: 700; font-family: inherit;
+        margin-bottom: 12px;
+    }
     #status { margin-top: 20px; font-weight: 700; font-size: .95rem; color: #334155; min-height: 24px; }
     #result { margin-top: 16px; }
     .result-box {
@@ -51,28 +67,48 @@
     }
     .spin { display: inline-block; animation: rot 1s linear infinite; }
     @keyframes rot { to { transform: rotate(360deg); } }
-    input[type=file] { display: none; }
     .debug {
         margin-top: 20px; padding: 12px; background: #f1f5f9;
         border-radius: 8px; font-size: .7rem; color: #475569;
         text-align: left; white-space: pre-wrap; max-height: 150px; overflow-y: auto;
+    }
+    .manual-input {
+        display: flex; gap: 8px; margin-top: 12px;
+    }
+    .manual-input input { flex: 1; }
+    .manual-input button {
+        padding: 14px 20px; border: none; border-radius: 12px;
+        background: #059669; color: #fff; font-weight: 700; font-family: inherit;
+        cursor: pointer;
     }
 </style>
 </head>
 <body>
 <div class="card">
     <h1>📋 Генератор Актов</h1>
-    <p class="sub">Выбери специалиста и сфотографируй QR</p>
+    <p class="sub">Отсканируй QR или введи номер вручную</p>
 
     <div class="form-group">
-        <label for="specialist">👤 Кто фоткает:</label>
+        <label for="specialist">👤 Кто сканирует:</label>
         <select id="specialist">
             <option value="">Загрузка...</option>
         </select>
     </div>
 
-    <label class="btn-photo" for="camera">📷 Сфотографировать QR</label>
-    <input type="file" id="camera" accept="image/*" capture="environment">
+    <div id="reader"></div>
+    <button class="btn-scan" id="btnScan">📷 Сканировать QR</button>
+    <button class="btn-stop" id="btnStop">⏹ Остановить камеру</button>
+
+    <div class="form-group">
+        <label for="invNumber">🔢 Инвентарный номер:</label>
+        <input type="text" id="invNumber" placeholder="Будет заполнен автоматически">
+        <div class="manual-input">
+            <input type="text" id="manualInv" placeholder="Или введи вручную">
+            <button id="btnManual">OK</button>
+        </div>
+    </div>
+
+    <button class="btn-scan" id="btnSend" style="background: linear-gradient(135deg, #059669, #10b981);">✅ Отправить запрос</button>
 
     <div id="status"></div>
     <div id="result"></div>
@@ -80,18 +116,30 @@
 </div>
 
 <script>
-const TOKEN = 'y0__wgBEK-D-7IHGPyVSyDw36GgGT_TVerXZdSfzGjgDVqQcvqXIvw0';
-const API = 'https://cloud-api.yandex.net/v1/disk';
-const H = { 'Authorization': 'OAuth ' + TOKEN };
-
-const GITHUB_API = 'https://api.github.com/repos/Azaeska/acts-phone/contents';
+// ===== НАСТРОЙКИ =====
+// ВСТАВЬ СЮДА ТОКЕН, КОТОРЫЙ СОЗДАЛ В ШАГЕ 1
+const GITHUB_TOKEN = 'github_pat_ВСТАВЬ_СВОЙ_ТОКЕН_ЗДЕСЬ';
+const GITHUB_REPO = 'Azaeska/acts-phone';
+const GITHUB_BRANCH = 'main';
+const REQUESTS_PATH = 'requests';
 const RESULTS_PATH = 'results';
+
+const GITHUB_API = 'https://api.github.com/repos/' + GITHUB_REPO + '/contents';
 
 const statusEl = document.getElementById('status');
 const resultEl = document.getElementById('result');
 const specialistSelect = document.getElementById('specialist');
+const invNumberInput = document.getElementById('invNumber');
+const manualInvInput = document.getElementById('manualInv');
 const debugEl = document.getElementById('debug');
+const btnScan = document.getElementById('btnScan');
+const btnStop = document.getElementById('btnStop');
+const btnSend = document.getElementById('btnSend');
+const btnManual = document.getElementById('btnManual');
+
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+let html5QrCode = null;
+let isScanning = false;
 
 function log(msg) {
     console.log(msg);
@@ -99,7 +147,7 @@ function log(msg) {
     debugEl.scrollTop = debugEl.scrollHeight;
 }
 
-// Надёжное декодирование base64 → UTF-8 (работает с кириллицей)
+// Надёжное декодирование base64 → UTF-8
 function b64DecodeUnicode(str) {
     const byteCharacters = atob(str);
     const byteNumbers = new Array(byteCharacters.length);
@@ -110,49 +158,15 @@ function b64DecodeUnicode(str) {
     return new TextDecoder('utf-8').decode(byteArray);
 }
 
-// Сжатие изображения через canvas (уменьшаем до maxSize px по длинной стороне)
-function compressImage(file, maxSize) {
-    return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => {
-            let { width, height } = img;
-            if (Math.max(width, height) > maxSize) {
-                if (width > height) {
-                    height = (height / width) * maxSize;
-                    width = maxSize;
-                } else {
-                    width = (width / height) * maxSize;
-                    height = maxSize;
-                }
-            }
-            const canvas = document.createElement('canvas');
-            canvas.width = width;
-            canvas.height = height;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, width, height);
-            canvas.toBlob(blob => {
-                if (blob) resolve(blob);
-                else reject(new Error('Ошибка сжатия'));
-            }, 'image/jpeg', 0.85);
-        };
-        img.onerror = reject;
-        img.src = URL.createObjectURL(file);
-    });
-}
-
-// Загружаем список специалистов с GitHub
+// Загрузка списка специалистов
 async function loadSpecialists() {
-    log('Загружаю список специалистов с GitHub...');
+    log('Загружаю список специалистов...');
     try {
         const r = await fetch(GITHUB_API + '/specialists.json', {
             headers: { 'Accept': 'application/vnd.github.v3+json' }
         });
-        
         if (!r.ok) throw new Error('GitHub API ошибка: ' + r.status);
-        
         const data = await r.json();
-        log('Файл найден, размер: ' + data.size + ' байт');
-        
         const decoded = b64DecodeUnicode(data.content);
         const specialists = JSON.parse(decoded);
         log('Получено специалистов: ' + specialists.length);
@@ -173,43 +187,123 @@ async function loadSpecialists() {
 
 loadSpecialists();
 
-// Обработка выбора файла (фото)
-document.getElementById('camera').addEventListener('change', async e => {
-    const file = e.target.files[0];
-    if (!file) return;
+// ===== СКАНЕР QR =====
+
+btnScan.addEventListener('click', async () => {
+    if (isScanning) return;
     
+    try {
+        html5QrCode = new Html5Qrcode("reader");
+        await html5QrCode.start(
+            { facingMode: "environment" }, // задняя камера
+            {
+                fps: 10,
+                qrbox: { width: 250, height: 250 }
+            },
+            onScanSuccess,
+            onScanFailure
+        );
+        isScanning = true;
+        btnScan.style.display = 'none';
+        btnStop.style.display = 'block';
+        log('📷 Камера запущена...');
+    } catch (err) {
+        log('❌ Ошибка камеры: ' + err.message);
+        statusEl.innerHTML = '❌ Не удалось открыть камеру. Проверь разрешения.';
+    }
+});
+
+btnStop.addEventListener('click', async () => {
+    if (html5QrCode && isScanning) {
+        await html5QrCode.stop();
+        html5QrCode.clear();
+        isScanning = false;
+        btnScan.style.display = 'block';
+        btnStop.style.display = 'none';
+        log(' Камера остановлена');
+    }
+});
+
+function onScanSuccess(decodedText, decodedResult) {
+    log('✅ QR распознан: ' + decodedText);
+    invNumberInput.value = decodedText;
+    
+    // Останавливаем камеру после успешного сканирования
+    if (html5QrCode && isScanning) {
+        html5QrCode.stop();
+        html5QrCode.clear();
+        isScanning = false;
+        btnScan.style.display = 'block';
+        btnStop.style.display = 'none';
+    }
+    
+    statusEl.innerHTML = '✅ QR распознан! Нажми "Отправить запрос"';
+}
+
+function onScanFailure(error) {
+    // Игнорируем ошибки сканирования (камера просто ищет QR)
+}
+
+// Ручной ввод номера
+btnManual.addEventListener('click', () => {
+    const val = manualInvInput.value.trim();
+    if (val) {
+        invNumberInput.value = val;
+        manualInvInput.value = '';
+        log('🔢 Введён номер вручную: ' + val);
+        statusEl.innerHTML = '✅ Номер введён! Нажми "Отправить запрос"';
+    }
+});
+
+// ===== ОТПРАВКА ЗАПРОСА =====
+
+btnSend.addEventListener('click', async () => {
     const specialist = specialistSelect.value;
+    const invNumber = invNumberInput.value.trim();
+    
     if (!specialist) {
         statusEl.innerHTML = '⚠️ Сначала выбери специалиста!';
+        return;
+    }
+    if (!invNumber) {
+        statusEl.innerHTML = '️ Введи или отсканируй инвентарный номер!';
         return;
     }
     
     resultEl.innerHTML = '';
     const ts = Date.now();
-    const safeName = specialist.replace(/[^a-zA-Zа-яА-Я0-9]/g, '_');
-    const name = safeName + '_' + ts + '.jpg';
+    const requestFilename = `${ts}.txt`;
+    const requestContent = invNumber;
 
     try {
-        statusEl.innerHTML = '<span class="spin">⏳</span> Сжимаю фото...';
+        statusEl.innerHTML = '<span class="spin">⏳</span> Отправляю запрос...';
+        log('Отправляю номер ' + invNumber + ' на GitHub...');
         
-        // Сжимаем фото через canvas (уменьшаем до 1600px)
-        const compressedBlob = await compressImage(file, 1600);
-        log('Фото сжато: ' + (compressedBlob.size / 1024).toFixed(0) + ' КБ');
+        // Кодируем в base64
+        const encoded = btoa(unescape(encodeURIComponent(requestContent)));
+        const url = GITHUB_API + '/' + REQUESTS_PATH + '/' + requestFilename;
         
-        statusEl.innerHTML = '<span class="spin">⏳</span> Отправляю фото...';
+        const r = await fetch(url, {
+            method: 'PUT',
+            headers: {
+                'Authorization': 'token ' + GITHUB_TOKEN,
+                'Accept': 'application/vnd.github.v3+json',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                message: 'New scan request',
+                content: encoded,
+                branch: GITHUB_BRANCH
+            })
+        });
         
-        const up = await fetch(API + '/resources/upload?path=' + encodeURIComponent('/acts-bot/inbox/' + name) + '&overwrite=true', { headers: H });
-        const upj = await up.json();
-        if (!upj.href) throw new Error('Не удалось получить ссылку для загрузки');
+        if (!r.ok) throw new Error('Ошибка загрузки запроса: ' + r.status + ' ' + await r.text());
         
-        const put = await fetch(upj.href, { method: 'PUT', body: compressedBlob });
-        if (put.status !== 201) throw new Error('Ошибка загрузки: ' + put.status);
-
-        statusEl.innerHTML = '<span class="spin">⏳</span> Фото отправлено! Обрабатываю...';
-        log('Фото загружено, жду результат на GitHub...');
-
-        // Ждём результат на GitHub (до 3 минут, проверка каждые 2 сек)
-        for (let i = 0; i < 90; i++) {
+        log('✅ Запрос загружен, жду ответ...');
+        statusEl.innerHTML = '<span class="spin">⏳</span> Запрос отправлен! Обрабатываю...';
+        
+        // Ждём ответ (до 2 минут, проверка каждые 2 сек)
+        for (let i = 0; i < 60; i++) {
             await sleep(2000);
             
             const resultApiUrl = GITHUB_API + '/' + RESULTS_PATH;
@@ -220,12 +314,11 @@ document.getElementById('camera').addEventListener('change', async e => {
             if (!lr.ok) continue;
             
             const lj = await lr.json();
-            
-            // Ищем файл по ТОЧНОМУ имени: result_TIMESTAMP.txt
+            // Ищем файл result_TIMESTAMP.txt
             const found = lj.find(it => it.name === `result_${ts}.txt`);
             
             if (found) {
-                log('Результат найден: ' + found.name);
+                log('✅ Результат найден: ' + found.name);
                 
                 const rr = await fetch(found.url, {
                     headers: { 'Accept': 'application/vnd.github.v3+json' }
@@ -239,14 +332,17 @@ document.getElementById('camera').addEventListener('change', async e => {
                 statusEl.innerHTML = '✅ Готово!';
                 resultEl.innerHTML = '<div class="result-box">' + decoded.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>';
                 log('✅ Результат отображён!');
+                
+                // Очищаем поле номера для следующего сканирования
+                invNumberInput.value = '';
                 return;
             }
         }
-        statusEl.innerHTML = '⚠️ Сервер не ответил за 3 минуты. Проверь, запущен ли бот.';
-        log('⚠️ Таймаут ожидания результата');
+        statusEl.innerHTML = '⚠️ Сервер не ответил за 2 минуты.';
+        log('⚠️ Таймаут');
     } catch (err) {
         statusEl.innerHTML = '❌ Ошибка: ' + err.message;
-        log('❌ Критическая ошибка: ' + err.message);
+        log('❌ ' + err.message);
     }
 });
 </script>
