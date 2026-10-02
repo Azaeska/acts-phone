@@ -47,11 +47,16 @@
     .spin { display: inline-block; animation: rot 1s linear infinite; }
     @keyframes rot { to { transform: rotate(360deg); } }
     input[type=file] { display: none; }
+    .debug {
+        margin-top: 20px; padding: 12px; background: #f1f5f9;
+        border-radius: 8px; font-size: .75rem; color: #475569;
+        text-align: left; white-space: pre-wrap;
+    }
 </style>
 </head>
 <body>
 <div class="card">
-    <h1>📋 Генератор Актов</h1>
+    <h1> Генератор Актов</h1>
     <p class="sub">Выбери специалиста и сфотографируй</p>
 
     <div class="form-group">
@@ -66,6 +71,7 @@
 
     <div id="status"></div>
     <div id="result"></div>
+    <div id="debug" class="debug"></div>
 </div>
 
 <script>
@@ -77,15 +83,34 @@ const H = { 'Authorization': 'OAuth ' + TOKEN };
 const statusEl = document.getElementById('status');
 const resultEl = document.getElementById('result');
 const specialistSelect = document.getElementById('specialist');
+const debugEl = document.getElementById('debug');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+function log(msg) {
+    console.log(msg);
+    debugEl.textContent += msg + '\n';
+}
 
 // Загружаем список специалистов
 async function loadSpecialists() {
+    log('Загружаю список специалистов...');
     try {
         const r = await fetch(API + '/resources/download?path=' + encodeURIComponent('/acts-bot/specialists.json'), { headers: H });
+        log('Статус ответа: ' + r.status);
+        
+        if (r.status === 401 || r.status === 403) {
+            throw new Error('Неверный токен или нет доступа');
+        }
+        if (r.status === 404) {
+            throw new Error('Файл specialists.json не найден на Диске');
+        }
+        
         const j = await r.json();
+        log('Ссылка на скачивание: ' + j.href);
+        
         const fr = await fetch(j.href);
         const specialists = await fr.json();
+        log('Получено специалистов: ' + specialists.length);
         
         specialistSelect.innerHTML = '<option value="">Выбери специалиста...</option>';
         specialists.forEach(s => {
@@ -94,9 +119,10 @@ async function loadSpecialists() {
             opt.textContent = s.fio + ' (' + s.position + ')';
             specialistSelect.appendChild(opt);
         });
+        log('✅ Список загружен!');
     } catch (err) {
+        log('❌ Ошибка: ' + err.message);
         specialistSelect.innerHTML = '<option value="">Ошибка загрузки</option>';
-        console.error(err);
     }
 }
 
@@ -125,7 +151,6 @@ document.getElementById('camera').addEventListener('change', async e => {
 
         statusEl.innerHTML = '<span class="spin">⏳</span> Фото отправлено! Обрабатываю...';
 
-        // ждём результат в outbox (до 2 минут)
         for (let i = 0; i < 24; i++) {
             await sleep(5000);
             const lr = await fetch(API + '/resources?path=' + encodeURIComponent('/acts-bot/outbox'), { headers: H });
