@@ -39,10 +39,15 @@
     .btn-photo:active { transform: scale(.97); }
     #status { margin-top: 20px; font-weight: 700; font-size: .95rem; color: #334155; min-height: 24px; }
     #result { margin-top: 16px; }
-    #result a {
-        display: block; padding: 14px; border-radius: 12px;
-        background: linear-gradient(135deg, #059669, #10b981);
-        color: #fff; font-weight: 800; text-decoration: none;
+    .result-box {
+        background: #f8fafc;
+        padding: 16px;
+        border-radius: 12px;
+        text-align: left;
+        white-space: pre-wrap;
+        font-size: .9rem;
+        line-height: 1.5;
+        border-left: 4px solid #10b981;
     }
     .spin { display: inline-block; animation: rot 1s linear infinite; }
     @keyframes rot { to { transform: rotate(360deg); } }
@@ -56,8 +61,8 @@
 </head>
 <body>
 <div class="card">
-    <h1>📋 Генератор Актов</h1>
-    <p class="sub">Выбери специалиста и сфотографируй</p>
+    <h1> Генератор Актов</h1>
+    <p class="sub">Выбери специалиста и сфотографируй QR</p>
 
     <div class="form-group">
         <label for="specialist">👤 Кто фоткает:</label>
@@ -80,8 +85,9 @@ const TOKEN = 'y0__wgBEK-D-7IHGPyVSyDw36GgGT_TVerXZdSfzGjgDVqQcvqXIvw0';
 const API = 'https://cloud-api.yandex.net/v1/disk';
 const H = { 'Authorization': 'OAuth ' + TOKEN };
 
-// GitHub API для чтения файла (CORS разрешён!)
-const GITHUB_API = 'https://api.github.com/repos/Azaeska/acts-phone/contents/specialists.json';
+// GitHub API для чтения файлов (CORS разрешён!)
+const GITHUB_API = 'https://api.github.com/repos/Azaeska/acts-phone/contents';
+const RESULTS_PATH = 'results';
 
 const statusEl = document.getElementById('status');
 const resultEl = document.getElementById('result');
@@ -110,7 +116,7 @@ function b64DecodeUnicode(str) {
 async function loadSpecialists() {
     log('Загружаю список специалистов с GitHub...');
     try {
-        const r = await fetch(GITHUB_API, {
+        const r = await fetch(GITHUB_API + '/specialists.json', {
             headers: { 'Accept': 'application/vnd.github.v3+json' }
         });
         
@@ -168,24 +174,46 @@ document.getElementById('camera').addEventListener('change', async e => {
         if (put.status !== 201) throw new Error('Ошибка загрузки: ' + put.status);
 
         statusEl.innerHTML = '<span class="spin">⏳</span> Фото отправлено! Обрабатываю...';
-        log('Фото загружено, жду результат...');
+        log('Фото загружено, жду результат на GitHub...');
 
+        // Ждём результат на GitHub (до 2 минут, проверка каждые 5 сек)
         for (let i = 0; i < 24; i++) {
             await sleep(5000);
-            const lr = await fetch(API + '/resources?path=' + encodeURIComponent('/acts-bot/outbox'), { headers: H });
-            const lj = await lr.json();
-            const items = (lj._embedded && lj._embedded.items) || [];
             
-            const found = items.find(it => it.name.startsWith(safeName + '_' + ts));
+            // Ищем файл результата на GitHub
+            const resultApiUrl = GITHUB_API + '/' + RESULTS_PATH;
+            const lr = await fetch(resultApiUrl, {
+                headers: { 'Accept': 'application/vnd.github.v3+json' }
+            });
+            
+            if (!lr.ok) {
+                log('Папка results ещё не создана на GitHub');
+                continue;
+            }
+            
+            const lj = await lr.json();
+            
+            // Ищем файл, который начинается с нашего имени
+            const found = lj.find(it => it.name.startsWith(safeName + '_') && it.name.endsWith('.txt'));
             
             if (found) {
-                log('Результат найден: ' + found.name);
-                const dr = await fetch(API + '/resources/download?path=' + encodeURIComponent(found.path), { headers: H });
-                const dj = await dr.json();
+                log('Результат найден на GitHub: ' + found.name);
+                
+                // Загружаем содержимое файла
+                const rr = await fetch(found.url, {
+                    headers: { 'Accept': 'application/vnd.github.v3+json' }
+                });
+                
+                if (!rr.ok) throw new Error('Ошибка загрузки результата: ' + rr.status);
+                
+                const rd = await rr.json();
+                // Декодируем base64
+                const decoded = b64DecodeUnicode(rd.content);
                 
                 statusEl.innerHTML = '✅ Готово!';
-                resultEl.innerHTML = '<a href="' + dj.href + '" target="_blank">📥 Скачать результат</a>';
-                log('✅ Документ готов к скачиванию!');
+                // Показываем содержимое прямо на странице
+                resultEl.innerHTML = '<div class="result-box">' + decoded.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>';
+                log('✅ Результат отображён!');
                 return;
             }
         }
